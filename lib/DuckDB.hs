@@ -40,57 +40,9 @@ import qualified Data.Text as DT
 import qualified Data.Aeson.Key as Key
 import Data.Int
 import Data.Word
--- import Control.Lens.Combinators ( makeLenses, at, lmap, review)
--- import Control.Lens.Operators ( (<&>), (^.), (&), (.~), (?~))
 import Control.Monad
-
--- import Data.HashMap.Strict 
-{-# LANGUAGE OverloadedStrings #-}
-data DuckDbCon = DuckDbCon {
-  connection :: Ptr DuckDBConnection
-  , database :: Ptr DuckDBDatabase
-  , config :: Maybe (Ptr DuckDBConfig)
-}
-
-data DuckDBType
-    = Invalid
-    | Boolean
-    | TinyInt
-    | SmallInt
-    | DuckInteger
-    | BigInt
-    | UTinyInt
-    | USmallInt
-    | UInteger
-    | UBigInt
-    | Float
-    | DuckDouble
-    | Timestamp
-    | Date
-    | Time
-    | Interval
-    | HugeInt
-    | Varchar
-    | Blob
-    | Decimal
-    | TimestampS
-    | TimestampMS
-    | TimestampNS
-    | Enum
-    | List
-    | Struct
-    | Map
-    | UUID
-    | Union
-    | Bit
-    | TimeTZ
-    | TimestampTZ
-    | UHugeInt
-    | Array
-    | Any
-    | VarInt
-    | SQLNull
-    deriving (Show, Eq, Enum)
+import DuckDB.Types
+import DuckDB.Utils
 
 duckdbOpen :: Maybe String -> IO (Ptr DuckDBDatabase)
 duckdbOpen mPath = do
@@ -140,34 +92,20 @@ duckdbOpenAndConnect mPath mConfigItems = do
   con <-  duckdbConnect db
   pure $ DuckDbCon con ptr config
 
-duckdbQuery :: DuckDbCon -> String -> IO (Ptr DuckDBResult)
+duckdbQuery :: DuckDbCon -> String -> IO ()
 duckdbQuery DuckDbCon{connection} query = do
-  alloca $ \resPtr -> do 
+  alloca $ \resPtr -> do
     cquery <- newCString query
     con <- peek connection
     result <- c_duckdb_query con cquery resPtr
     if result == 0
-      then pure resPtr
+      then do
+        c_duckdb_destroy_result resPtr
+        pure ()
       else do
         errorString <- peekCString $ c_duckdb_result_error resPtr
+        c_duckdb_destroy_result resPtr
         error errorString
-
-getMappedValues col idxRow columnsData types = do
-  case (types !! col) of
-    Boolean -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Bool) (idxRow)
-    TinyInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int8) (idxRow)
-    SmallInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int16) (idxRow)
-    DuckInteger -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int32) idxRow
-    BigInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int64) (idxRow)
-    UTinyInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Word8) (idxRow)
-    USmallInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Word16) (idxRow)
-    UInteger -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Word32) (idxRow)
-    UBigInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Word64) (idxRow)
-    Float -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Float) (idxRow)
-    DuckDouble -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Double) (idxRow)
-    Varchar -> toJSON <$> peekCString (c_duckdb_cstring_from_struct_string (fst (columnsData !! col)) (toEnum idxRow))
-    Timestamp -> pure $ toJSON $ fromEnum (c_duckdb_timestamp_from_struct (fst (columnsData !! col)) (toEnum idxRow))
-    _ -> pure $ toJSON Null
 
 getRowData :: Ptr LDuckDBDataChunk -> [DuckDBType] -> Int -> [String] -> ConduitT () Object IO ()
 getRowData chunk types numCols cNames = do
@@ -178,37 +116,33 @@ getRowData chunk types numCols cNames = do
       colData = c_duckdb_vector_get_data vector
       validatyCol = c_duckdb_vector_get_validity vector
     pure (colData , validatyCol)
-     ) [0..(numCols-1)]
-  forM_ [0..(numRows-1)] (\idxRow -> do
-    let 
+      ) [0..numCols-1]
+  forM_ [0..numRows-1] (\idxRow -> do
+    let
       obj = mempty :: Object
     finalObj <- foldM (\o col -> do
-      val <- if (fromEnum (c_duckdb_validity_row_is_valid (snd (columnsData !! col)) (toEnum idxRow)) == 1 ) 
+      val <- if (fromEnum (c_duckdb_validity_row_is_valid (snd (columnsData !! col)) (toEnum idxRow)) == 1 )
               then liftIO $ Just <$> getMappedValues col idxRow columnsData types
               else pure Nothing
-      pure $ (o 
-                & at (Key.fromText $ DT.pack (cNames !! col)) ?~ (toJSON val))
-       ) obj [0..(numCols-1)]
-    yield finalObj
-    )
+      pure $ (o & at (Key.fromText $ DT.pack (cNames !! col)) ?~ (toJSON val))
+        ) obj [0..numCols-1]
+    yield finalObj)
 
 makeResultConduit :: Ptr DuckDBResult -> ConduitT () Object IO ()
 makeResultConduit resultPtr = do
-  liftIO $ print "in res sonduit"
   let 
     numCols = fromEnum $ c_duckdb_column_count resultPtr
-    types = map (\idx -> toEnum (fromEnum $ c_duckdb_column_type resultPtr (toEnum idx)) :: DuckDBType) [0..(numCols-1)]
+    types = map (\idx -> toEnum (fromEnum $ c_duckdb_column_type resultPtr (toEnum idx)) :: DuckDBType) [0..numCols-1]
     loopFetch cNames= do
       chunkPtr <- liftIO $ c_duckdb_stream_fetch_chunk_ptr resultPtr
       if chunkPtr == nullPtr 
         then pure ()
         else do
           getRowData chunkPtr types numCols cNames
+          liftIO $ c_duckdb_destroy_data_chunk chunkPtr
           loopFetch cNames
-  liftIO $ print types
-  colNames <- liftIO $ mapM (\idx -> peekCString $ c_duckdb_column_name resultPtr (toEnum idx)) [0..(numCols-1)]
+  colNames <- liftIO $ mapM (\idx -> peekCString $ c_duckdb_column_name resultPtr (toEnum idx)) [0..numCols-1]
   loopFetch colNames
-  
 
 duckdbQueryConduitRes :: DuckDbCon -> String -> ConduitT () Object IO ()
 duckdbQueryConduitRes DuckDbCon{connection} query = do
@@ -220,24 +154,34 @@ duckdbQueryConduitRes DuckDbCon{connection} query = do
   ps <- liftIO $ peek psPtr
   result <- liftIO $ 
               c_duckdb_execute_prepared_streaming ps resPtr
-  liftIO $ print result
   if result == 0
-    then makeResultConduit resPtr
+    then do
+      makeResultConduit resPtr
+      liftIO $ c_duckdb_destroy_result resPtr
     else do
-        liftIO $ print "in error"
-        liftIO $ print (c_duckdb_result_error resPtr)
-        -- errorString <- liftIO $ peekCString $ c_duckdb_result_error resPtr
-        -- error errorString
+        errorString <- liftIO $ peekCString $ c_duckdb_result_error resPtr
+        liftIO $ c_duckdb_destroy_result resPtr
+        error errorString
 
 duckdbRowCount :: Ptr DuckDBResult -> Int
 duckdbRowCount resultPtr = fromEnum $ c_duckdb_row_count resultPtr
 
 duckdbDisconnectAndClose :: DuckDbCon ->  IO ()
 duckdbDisconnectAndClose DuckDbCon{connection, database, config} = do
-  c_duckdb_disconnect connection
-  c_duckdb_close database
   maybe (pure ()) duckdbDistroyConfig config
+  print config
+  c_duckdb_disconnect connection
+  print connection
+  c_duckdb_close database
+  print database
 
+duckdbConfigureAWS :: DuckDbCon ->  IO ()
+duckdbConfigureAWS res = do
+  duckdbQuery res "INSTALL httpfs;"
+  duckdbQuery res "LOAD httpfs;"
+  duckdbQuery res "INSTALL aws;"
+  duckdbQuery res "LOAD aws;"
+  duckdbQuery res "CALL load_aws_credentials();"
 
 duckdbCreateConfig :: IO (Ptr DuckDBConfig)
 duckdbCreateConfig = do
@@ -257,4 +201,4 @@ duckdbSetConfig configPtr a b =  do
       else error "Failed to set config."
 
 duckdbDistroyConfig :: Ptr DuckDBConfig -> IO ()
-duckdbDistroyConfig configPtr = c_duckdb_destroy_config configPtr
+duckdbDistroyConfig  = c_duckdb_destroy_config

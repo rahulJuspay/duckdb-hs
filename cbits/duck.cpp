@@ -20,10 +20,8 @@ duckdb_data_chunk duckdb_stream_fetch_chunk_ptr(duckdb_result *result) {
 }
 
 const char *duckdb_cstring_from_struct_string(void *vectorData, idx_t row) {
-    // printf("in function");
     duckdb_string_t *vector_data = (duckdb_string_t *) vectorData;
     duckdb_string_t str = vector_data[row];
-    
     if (duckdb_string_is_inlined(str)) {
         char *s = (char *)malloc(str.value.inlined.length+1);
         sprintf(s,"%.*s", str.value.inlined.length, str.value.inlined.inlined);
@@ -37,7 +35,6 @@ const char *duckdb_cstring_from_struct_string(void *vectorData, idx_t row) {
 }
 
 int64_t duckdb_timestamp_from_struct(void *vectorData, idx_t row) {
-    // printf("in function");
     duckdb_timestamp *vector_data = (duckdb_timestamp *) vectorData;
     duckdb_timestamp t = vector_data[row];
     return t.micros;

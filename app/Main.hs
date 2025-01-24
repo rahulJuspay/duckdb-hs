@@ -18,25 +18,24 @@ main = do
   print "Testing duckdb ffi"
   res <- duckdbOpenAndConnect (Nothing) (Nothing :: Maybe [(String, String)])
   print "Running queries"
-  duckdbQuery res "CREATE TABLE IF NOT EXISTS INTTf (i INTEGER, j VARCHAR, k TIMESTAMP);"
-  duckdbQuery res "INSTALL httpfs;"
-  duckdbQuery res "LOAD httpfs;"
-  duckdbQuery res "INSTALL aws;"
-  duckdbQuery res "LOAD aws;"
-  duckdbQuery res "CREATE SECRET (TYPE S3, PROVIDER CREDENTIAL_CHAIN);"
-  duckdbQuery res "CALL load_aws_credentials();"
   
-  print "first query ran"
-  duckdbQuery res "INSERT INTO INTTf VALUES (3,'hello', '2025-01-06 11:30:00.123456789'), (5,'hii', '1992-09-20 11:30:00.123456789'),(7, NULL, '1992-09-20 11:30:00.123456789');"
-  -- duckdbQuery res "CREATE TABLE IF NOT EXISTS INTTf (i INTEGER, j INTEGER);"
-  print "second query ran"
-  -- r <- duckdbQuery res "SELECT * FROM INTTf;"
-  duckdbQuery res "SELECT * FROM read_parquet('s3://bulk-download-row-binary/parquet/juspayonly/rowbinary/txn/2025/01/22/10/000001737541437.parquet');"
+  -- duckdbQuery res "INSTALL httpfs;"
+  -- duckdbQuery res "LOAD httpfs;"
+  -- duckdbQuery res "INSTALL aws;"
+  -- duckdbQuery res "LOAD aws;"
+  -- duckdbQuery res "CALL load_aws_credentials();"
+
+  duckdbConfigureAWS res
+  -- duckdbQuery res "CREATE TABLE IF NOT EXISTS INTTf (i INTEGER, j VARCHAR, k TIMESTAMP);"
+  -- duckdbQuery res "INSERT INTO INTTf VALUES (3,'hello', '2025-01-06 11:30:00.123456789'), (5,'hii', '1992-09-20 11:30:00.123456789'),(7, NULL, '1992-09-20 11:30:00.123456789');"
+  
   runConduit $ do
-            (duckdbQueryConduitRes res "SELECT * FROM read_parquet('s3://bulk-download-row-binary/parquet/juspayonly/rowbinary/txn/2025/01/22/10/000001737541437.parquet');")
+            (duckdbQueryConduitRes res "SELECT * FROM 's3://bulk-download-row-binary/test/parquet/userdata1.parquet';")
             .| Conduit.map (encode)
             .| Conduit.map (BS.toStrict)
             .| Conduit.stdout
-  print "select ran"
-  -- let c = duckdbRowCount r
-  -- print c
+  duckdbDisconnectAndClose res
+  pure ()
+
+-- (duckdbQueryConduitRes res "SELECT * FROM 's3://bulk-download-row-binary/parquet/juspayonly/rowbinary/txn/2025/01/22/10/000001737541437.parquet';")
+-- s3://bulk-download-row-binary/test/parquet/userdata1.parquet

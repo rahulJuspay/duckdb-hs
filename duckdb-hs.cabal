@@ -76,15 +76,13 @@ executable duckdb-hs-runner
 
 library
     exposed-modules: DuckDB    
-    other-modules: DuckDB.FFI
+    other-modules: DuckDB.FFI, DuckDB.Types, DuckDB.Utils
 
     build-depends:    base, bytestring, ghc-prim, containers, conduit, conduit-extra, aeson, lens, lens-aeson, text
     hs-source-dirs:   lib
     extra-libraries: duckdb
     cxx-sources:
         cbits/duck.cpp
-
-    ghc-options: -pgmlg++
 
     default-extensions:  CPP
                      , EmptyDataDecls

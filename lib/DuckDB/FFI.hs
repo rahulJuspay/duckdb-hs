@@ -77,7 +77,7 @@ foreign import ccall "duckdb.h duckdb_row_count"
   c_duckdb_row_count :: Ptr DuckDBResult -> CInt
 
 foreign import ccall "duckdb.h duckdb_destroy_data_chunk"
-  c_duckdb_destroy_data_chunk :: Ptr (Ptr LDuckDBDataChunk) -> IO ()
+  c_duckdb_destroy_data_chunk :: (Ptr LDuckDBDataChunk) -> IO ()
 
 foreign import ccall "duckdb.h duckdb_data_chunk_get_column_count"
   c_duckdb_data_chunk_get_column_count :: Ptr LDuckDBDataChunk -> CInt
@@ -94,19 +94,10 @@ foreign import ccall "duckdb.h duckdb_column_count"
 foreign import ccall "duckdb.h duckdb_result_error"
   c_duckdb_result_error :: Ptr DuckDBResult -> CString
 
+foreign import ccall "duckdb.h duckdb_destroy_result"
+  c_duckdb_destroy_result :: Ptr DuckDBResult -> IO ()
 
 -- prepare query
-
--- DUCKDB_API idx_t duckdb_result_chunk_count(duckdb_result result);
-
--- #endif
--- /*!
--- Returns the return_type of the given result, or DUCKDB_RETURN_TYPE_INVALID on error
-
--- * @param result The result object
--- * @return The return_type
--- */
--- DUCKDB_API duckdb_result_type duckdb_result_return_type(duckdb_result result);
 
 foreign import ccall "duckdb.h duckdb_result_chunk_count"
   c_duckdb_result_chunk_count :: DuckDBResult -> CInt
@@ -132,7 +123,7 @@ foreign import ccall "duckdb.h duckdb_disconnect"
   c_duckdb_disconnect :: Ptr DuckDBConnection -> IO ()
 
 foreign import ccall "duckdb.h duckdb_close"
-  c_duckdb_close :: Ptr DuckDBDatabase-> IO ()
+  c_duckdb_close :: Ptr DuckDBDatabase -> IO ()
 
 -- config
 
