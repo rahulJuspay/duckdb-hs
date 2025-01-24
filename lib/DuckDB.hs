@@ -99,9 +99,7 @@ duckdbQuery DuckDbCon{connection} query = do
     con <- peek connection
     result <- c_duckdb_query con cquery resPtr
     if result == 0
-      then do
-        c_duckdb_destroy_result resPtr
-        pure ()
+      then c_duckdb_destroy_result resPtr
       else do
         errorString <- peekCString $ c_duckdb_result_error resPtr
         c_duckdb_destroy_result resPtr
@@ -169,11 +167,8 @@ duckdbRowCount resultPtr = fromEnum $ c_duckdb_row_count resultPtr
 duckdbDisconnectAndClose :: DuckDbCon ->  IO ()
 duckdbDisconnectAndClose DuckDbCon{connection, database, config} = do
   maybe (pure ()) duckdbDistroyConfig config
-  print config
   c_duckdb_disconnect connection
-  print connection
   c_duckdb_close database
-  print database
 
 duckdbConfigureAWS :: DuckDbCon ->  IO ()
 duckdbConfigureAWS res = do
