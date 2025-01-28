@@ -34,6 +34,11 @@ const char *duckdb_cstring_from_struct_string(void *vectorData, idx_t row) {
     return "NULL";
 }
 
+bool duckdb_get_bool_from_vector(void *vectorData, idx_t row) {
+    bool *vector_data = (bool *) vectorData;
+    return vector_data[row];
+}
+
 int64_t duckdb_timestamp_from_struct(void *vectorData, idx_t row) {
     duckdb_timestamp *vector_data = (duckdb_timestamp *) vectorData;
     duckdb_timestamp t = vector_data[row];

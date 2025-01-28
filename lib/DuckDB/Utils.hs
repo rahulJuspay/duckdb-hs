@@ -46,7 +46,8 @@ import DuckDB.Types
 getMappedValues :: Int -> Int -> [(Ptr (), b)] -> [DuckDBType] -> IO Value
 getMappedValues col idxRow columnsData types = do
   case (types !! col) of
-    Boolean -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Bool) (idxRow)
+    Boolean -> pure $ toJSON $ fromEnum (c_duckdb_get_bool_from_vector (fst (columnsData !! col)) (toEnum idxRow)) == 1
+    --  peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Bool) (idxRow)
     TinyInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int8) (idxRow)
     SmallInt -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int16) (idxRow)
     DuckInteger -> toJSON <$> peekElemOff (castPtr (fst (columnsData !! col)) :: Ptr Int32) idxRow

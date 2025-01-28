@@ -67,6 +67,9 @@ foreign import ccall "duckdb.h duckdb_vector_get_validity"
 foreign import ccall "duckdb.h duckdb_cstring_from_struct_string"
   c_duckdb_cstring_from_struct_string :: Ptr () -> CInt -> CString
 
+foreign import ccall "duck.h duckdb_get_bool_from_vector"
+  c_duckdb_get_bool_from_vector :: Ptr () -> CInt -> CBool
+
 foreign import ccall "duckdb.h duckdb_timestamp_from_struct"
   c_duckdb_timestamp_from_struct :: Ptr () -> CInt -> CLong
 
