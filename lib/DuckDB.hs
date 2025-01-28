@@ -49,18 +49,18 @@ duckdbOpen mPath = do
   outDatabase <- malloc
   cPath <- maybe (pure nullPtr) newCString mPath
   result <- c_duckdb_open cPath outDatabase
-  if result == 0
-    then pure outDatabase
-    else error "Failed to open DuckDB database."
+  when (not (result == 0)) (error "Failed to open DuckDB database.")
+  pure outDatabase
+    -- else error "Failed to open DuckDB database."
 
 duckdbOpenExt :: Maybe String -> DuckDBConfig -> IO (Ptr DuckDBDatabase)
 duckdbOpenExt mPath config = do
   outDatabase <- malloc
   cPath <- maybe (pure nullPtr) newCString mPath
   result <- c_duckdb_open_ext cPath outDatabase config nullPtr
-  if result == 0
-    then pure outDatabase
-    else error "Failed to open DuckDB database."
+  when (not (result == 0)) (error "Failed to open DuckDB database.")
+  pure outDatabase
+    -- else error "Failed to open DuckDB database."
 
 getConfigFromHM :: (Traversable t) => t (String, String) -> IO (Ptr DuckDBConfig)
 getConfigFromHM items = do
@@ -73,9 +73,9 @@ duckdbConnect :: Ptr LDuckDBDatabase -> IO (Ptr DuckDBConnection)
 duckdbConnect dataBase = do
   outConnection <- malloc
   result <- c_duckdb_connect dataBase outConnection
-  if result == 0
-    then pure outConnection
-    else error "Failed to Connect to DuckDB database."
+  when (not (result == 0)) (error "Failed to Connect to DuckDB database.")
+  pure outConnection
+    -- else error "Failed to Connect to DuckDB database."
 
 duckdbOpenAndConnect :: (Traversable t) => Maybe String -> Maybe (t (String, String)) -> IO DuckDbCon
 duckdbOpenAndConnect mPath mConfigItems = do
@@ -98,12 +98,11 @@ duckdbQuery DuckDbCon{connection} query = do
     cquery <- newCString query
     con <- peek connection
     result <- c_duckdb_query con cquery resPtr
-    if result == 0
-      then c_duckdb_destroy_result resPtr
-      else do
+    when (not (result == 0)) (do
         errorString <- peekCString $ c_duckdb_result_error resPtr
         c_duckdb_destroy_result resPtr
-        error errorString
+        error errorString)
+    c_duckdb_destroy_result resPtr
 
 getRowData :: Ptr LDuckDBDataChunk -> [DuckDBType] -> Int -> [String] -> ConduitT () Object IO ()
 getRowData chunk types numCols cNames = do
@@ -182,18 +181,17 @@ duckdbCreateConfig :: IO (Ptr DuckDBConfig)
 duckdbCreateConfig = do
   configPtr <- malloc
   result <- c_duckdb_create_config configPtr
-  if result == 0
-    then pure configPtr
-    else error "Failed to create config."
+  when (not (result == 0)) (error "Failed to create config.")
+  pure configPtr
+    -- else error "Failed to create config."
 
 duckdbSetConfig :: DuckDBConfig -> String -> String -> IO ()
 duckdbSetConfig configPtr a b =  do
     key <- newCString a
     value <- newCString b
     result <- c_duckdb_set_config configPtr key value 
-    if result == 0
-      then pure ()
-      else error "Failed to set config."
+    when (not (result == 0)) (error "Failed to set config.")
+      -- else error "Failed to set config."
 
 duckdbDistroyConfig :: Ptr DuckDBConfig -> IO ()
 duckdbDistroyConfig  = c_duckdb_destroy_config
