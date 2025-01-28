@@ -30,7 +30,7 @@ main = do
   -- duckdbQuery res "INSERT INTO INTTf VALUES (3,'hello', '2025-01-06 11:30:00.123456789'), (5,'hii', '1992-09-20 11:30:00.123456789'),(7, NULL, '1992-09-20 11:30:00.123456789');"
   
   runConduit $ do
-            (duckdbQueryConduitRes res "SELECT * FROM 's3://bulk-download-row-binary/test/parquet/userdata1.parquet';")
+            (duckdbQueryWithResponse res "SELECT * FROM 's3://bulk-download-row-binary/test/parquet/userdata1.parquet';")
             .| Conduit.map (encode)
             .| Conduit.map (BS.toStrict)
             .| Conduit.map (<> "\n")

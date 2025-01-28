@@ -141,8 +141,8 @@ makeResultConduit resultPtr = do
   colNames <- liftIO $ mapM (\idx -> peekCString $ c_duckdb_column_name resultPtr (toEnum idx)) [0..numCols-1]
   loopFetch colNames
 
-duckdbQueryConduitRes :: DuckDbCon -> String -> ConduitT () Object IO ()
-duckdbQueryConduitRes DuckDbCon{connection} query = do
+duckdbQueryWithResponse :: DuckDbCon -> String -> ConduitT () Object IO ()
+duckdbQueryWithResponse DuckDbCon{connection} query = do
   resPtr <- liftIO $ malloc
   psPtr <- liftIO $ malloc
   cquery <- liftIO $ newCString query
@@ -165,7 +165,7 @@ duckdbRowCount resultPtr = fromEnum $ c_duckdb_row_count resultPtr
 
 duckdbDisconnectAndClose :: DuckDbCon ->  IO ()
 duckdbDisconnectAndClose DuckDbCon{connection, database, config} = do
-  maybe (pure ()) duckdbDistroyConfig config
+  maybe (pure ()) duckdbDestroyConfig config
   c_duckdb_disconnect connection
   c_duckdb_close database
 
@@ -193,5 +193,5 @@ duckdbSetConfig configPtr a b =  do
     when (not (result == 0)) (error "Failed to set config.")
       -- else error "Failed to set config."
 
-duckdbDistroyConfig :: Ptr DuckDBConfig -> IO ()
-duckdbDistroyConfig  = c_duckdb_destroy_config
+duckdbDestroyConfig :: Ptr DuckDBConfig -> IO ()
+duckdbDestroyConfig  = c_duckdb_destroy_config
